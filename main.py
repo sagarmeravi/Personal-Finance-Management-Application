@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 # Initialize database and create tables
 def initialize_db():
@@ -71,6 +72,43 @@ def view_transactions(user_id):
     else:
         print("No transactions found.")
 
+# Generate financial reports
+def generate_financial_reports(user_id):
+    conn = sqlite3.connect('finance_app.db')
+    cursor = conn.cursor()
+    
+    # Monthly report
+    current_month = datetime.now().strftime('%Y-%m')
+    cursor.execute('''
+        SELECT type, SUM(amount) 
+        FROM transactions 
+        WHERE user_id = ? AND strftime('%Y-%m', date) = ?
+        GROUP BY type
+    ''', (user_id, current_month))
+    monthly_report = dict(cursor.fetchall())
+
+    # Yearly report
+    current_year = datetime.now().strftime('%Y')
+    cursor.execute('''
+        SELECT type, SUM(amount) 
+        FROM transactions 
+        WHERE user_id = ? AND strftime('%Y', date) = ?
+        GROUP BY type
+    ''', (user_id, current_year))
+    yearly_report = dict(cursor.fetchall())
+    
+    conn.close()
+    
+    print("\nMonthly Report:")
+    print(f"Income: {monthly_report.get('Income', 0)}")
+    print(f"Expenses: {monthly_report.get('Expense', 0)}")
+    print(f"Savings: {monthly_report.get('Income', 0) - monthly_report.get('Expense', 0)}")
+
+    print("\nYearly Report:")
+    print(f"Income: {yearly_report.get('Income', 0)}")
+    print(f"Expenses: {yearly_report.get('Expense', 0)}")
+    print(f"Savings: {yearly_report.get('Income', 0) - yearly_report.get('Expense', 0)}")
+
 # Main program loop
 def main():
     initialize_db()
@@ -82,7 +120,8 @@ def main():
         print("2. Login")
         print("3. Add Transaction")
         print("4. View Transactions")
-        print("5. Exit")
+        print("5. Generate Financial Reports")
+        print("6. Exit")
         choice = input("Choose an option: ")
         
         if choice == '1':
@@ -111,6 +150,11 @@ def main():
             else:
                 print("Please login first.")
         elif choice == '5':
+            if user_id:
+                generate_financial_reports(user_id)
+            else:
+                print("Please login first.")
+        elif choice == '6':
             print("Exiting...")
             break
         else:
