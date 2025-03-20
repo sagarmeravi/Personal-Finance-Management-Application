@@ -23,6 +23,17 @@ def initialize_db():
         FOREIGN KEY (user_id) REFERENCES users (id)
     )
     ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS budgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        category TEXT NOT NULL,
+        limit_amount REAL NOT NULL,
+        month_year TEXT NOT NULL,
+        UNIQUE(user_id, category, month_year),
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+    ''')
     conn.commit()
     conn.close()
 
@@ -57,6 +68,7 @@ def add_transaction(user_id, amount, category, type):
     conn.commit()
     conn.close()
     print("Transaction added successfully!")
+    check_budget_exceed(user_id, category)
 
 # View transactions
 def view_transactions(user_id):
@@ -109,6 +121,64 @@ def generate_financial_reports(user_id):
     print(f"Expenses: {yearly_report.get('Expense', 0)}")
     print(f"Savings: {yearly_report.get('Income', 0) - yearly_report.get('Expense', 0)}")
 
+# Set budget
+def set_budget(user_id, category, limit_amount):
+    month_year = datetime.now().strftime('%Y-%m')
+    conn = sqlite3.connect('finance_app.db')
+    cursor = conn.cursor()
+
+    # Check if budget already exists
+    cursor.execute('''
+        SELECT id FROM budgets 
+        WHERE user_id = ? AND category = ? AND month_year = ?
+    ''', (user_id, category, month_year))
+    budget_id = cursor.fetchone()
+
+    if budget_id:
+        # Update existing budget
+        cursor.execute('''
+            UPDATE budgets
+            SET limit_amount = ?
+            WHERE user_id = ? AND category = ? AND month_year = ?
+        ''', (limit_amount, user_id, category, month_year))
+        print(f"Budget updated for {category} to {limit_amount}.")
+    else:
+        # Insert new budget
+        cursor.execute('''
+            INSERT INTO budgets (user_id, category, limit_amount, month_year)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, category, limit_amount, month_year))
+        print(f"Budget set for {category} at {limit_amount}.")
+
+    conn.commit()
+    conn.close()
+
+# Check if budget is exceeded
+def check_budget_exceed(user_id, category):
+    month_year = datetime.now().strftime('%Y-%m')
+    conn = sqlite3.connect('finance_app.db')
+    cursor = conn.cursor()
+    
+    # Get total expenses for the category in the current month
+    cursor.execute('''
+        SELECT SUM(amount) FROM transactions 
+        WHERE user_id = ? AND category = ? AND type = 'Expense' 
+        AND strftime('%Y-%m', date) = ?
+    ''', (user_id, category, month_year))
+    total_expense = cursor.fetchone()[0] or 0
+
+    # Get budget limit
+    cursor.execute('''
+        SELECT limit_amount FROM budgets 
+        WHERE user_id = ? AND category = ? AND month_year = ?
+    ''', (user_id, category, month_year))
+    budget_limit = cursor.fetchone()
+
+    if budget_limit and total_expense > budget_limit[0]:
+        print(f"⚠️ Alert: You have exceeded your budget limit of {budget_limit[0]} for {category}! Total spent: {total_expense}")
+
+    conn.close()
+
 # Main program loop
 def main():
     initialize_db()
@@ -121,7 +191,8 @@ def main():
         print("3. Add Transaction")
         print("4. View Transactions")
         print("5. Generate Financial Reports")
-        print("6. Exit")
+        print("6. Set Budget")
+        print("7. Exit")
         choice = input("Choose an option: ")
         
         if choice == '1':
@@ -155,6 +226,13 @@ def main():
             else:
                 print("Please login first.")
         elif choice == '6':
+            if user_id:
+                category = input("Enter category: ")
+                limit_amount = float(input("Enter budget limit: "))
+                set_budget(user_id, category, limit_amount)
+            else:
+                print("Please login first.")
+        elif choice == '7':
             print("Exiting...")
             break
         else:
