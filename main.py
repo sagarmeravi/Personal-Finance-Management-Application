@@ -1,4 +1,5 @@
 import sqlite3
+import shutil
 from datetime import datetime
 
 # Initialize database and create tables
@@ -126,32 +127,13 @@ def set_budget(user_id, category, limit_amount):
     month_year = datetime.now().strftime('%Y-%m')
     conn = sqlite3.connect('finance_app.db')
     cursor = conn.cursor()
-
-    # Check if budget already exists
     cursor.execute('''
-        SELECT id FROM budgets 
-        WHERE user_id = ? AND category = ? AND month_year = ?
-    ''', (user_id, category, month_year))
-    budget_id = cursor.fetchone()
-
-    if budget_id:
-        # Update existing budget
-        cursor.execute('''
-            UPDATE budgets
-            SET limit_amount = ?
-            WHERE user_id = ? AND category = ? AND month_year = ?
-        ''', (limit_amount, user_id, category, month_year))
-        print(f"Budget updated for {category} to {limit_amount}.")
-    else:
-        # Insert new budget
-        cursor.execute('''
-            INSERT INTO budgets (user_id, category, limit_amount, month_year)
-            VALUES (?, ?, ?, ?)
-        ''', (user_id, category, limit_amount, month_year))
-        print(f"Budget set for {category} at {limit_amount}.")
-
+        INSERT OR REPLACE INTO budgets (user_id, category, limit_amount, month_year)
+        VALUES (?, ?, ?, ?)
+    ''', (user_id, category, limit_amount, month_year))
     conn.commit()
     conn.close()
+    print(f"Budget set for {category} at {limit_amount}.")
 
 # Check if budget is exceeded
 def check_budget_exceed(user_id, category):
@@ -179,6 +161,24 @@ def check_budget_exceed(user_id, category):
 
     conn.close()
 
+# Backup database
+def backup_database():
+    try:
+        shutil.copy('finance_app.db', 'finance_app_backup.bak')
+        print("✅ Database backup created successfully!")
+    except Exception as e:
+        print(f"❌ Error while creating backup: {e}")
+
+# Restore database
+def restore_database():
+    try:
+        shutil.copy('finance_app_backup.bak', 'finance_app.db')
+        print("✅ Database restored successfully!")
+    except FileNotFoundError:
+        print("❌ No backup file found!")
+    except Exception as e:
+        print(f"❌ Error while restoring backup: {e}")
+
 # Main program loop
 def main():
     initialize_db()
@@ -192,7 +192,9 @@ def main():
         print("4. View Transactions")
         print("5. Generate Financial Reports")
         print("6. Set Budget")
-        print("7. Exit")
+        print("7. Backup Database")
+        print("8. Restore Database")
+        print("9. Exit")
         choice = input("Choose an option: ")
         
         if choice == '1':
@@ -233,6 +235,10 @@ def main():
             else:
                 print("Please login first.")
         elif choice == '7':
+            backup_database()
+        elif choice == '8':
+            restore_database()
+        elif choice == '9':
             print("Exiting...")
             break
         else:
